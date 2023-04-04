@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>주간 보고서 작성 도구</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.2/xlsx.full.min.js"></script>
+  <style>
+    
+    body{background-color:lightgreen;}
+    h2{color:darkgreen;text-decoration:underline;}
+
+    #map-container {
+      float: right;
+      width: 70%;
+      height: 100%;
+      margin-right: 1%;
+      
+    }
+
+    #mapid {
+      height: 750px;
+      width: 100%;
+      margin-top: 2%;
+      border:5px solid rgb(199,21,133);
+      border-radius: 30px;
+    }
+
+    #form-container {
+      float: left;
+      width: 25%;
+      height: 100%;
+      padding: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 10px;
+      border: 2px solid black;
+      border-radius: 30px;
+    }
+
+    button {
+      padding: 5px;
+      margin-top: 10px; 
+    }
+    
+    /* body {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+} */
+
+    .btn {
+        font-size: 13px;
+        font-weight: bold;
+        padding: 10px 25px;
+        background-color: white;
+        color: black;
+        border: 2px solid black;
+        border-radius: 30px;
+        text-transform: uppercase;
+        letter-spacing: 4px;
+        /* font-family: sans-serif; */
+        transition: all 0.4s;
+        font-family: Georgia;
+    }
+
+    .btn:focus {
+        outline: none;
+    }
+
+    .btn:hover {
+        background-color: darkgreen;
+        color: rgb(199,21,133);
+    }
+  </style>
+
+</head>
+<body>
+  <h1>(주)올리브헬스케어CRO(AllLiVE HEALTHCARE CRO, Inc.)</h1>
+
+  <div id="form-container">
+    <h1>주간 보고서 작성 도구</h1>
+    <label for="author-name-input" style="color: rgb(199,21,133);font-weight: bold">Author Name:</label>
+    <input type="text" id="author-name-input" />
+
+    <label for="project-name-input" style="color: rgb(199,21,133);font-weight: bold">Project Name:</label>
+    <input type="text" id="project-name-input" />
+
+    <label for="site-name-input" style="color: rgb(199,21,133);font-weight: bold">Site Name:</label>
+    <input type="text" id="site-name-input" />
+
+    <label for="registration-status-input" style="color: rgb(199,21,133);font-weight: bold">Subject Registration Status:</label>
+    <input type="text" id="registration-status-input" />
+
+    <label for="irb-reporting-input" style="color: rgb(199,21,133);font-weight: bold">IRB Reporting Matters:</label>
+    <input type="text" id="irb-reporting-input" />
+
+    <label for="monitoring-status-input" style="color: rgb(199,21,133);font-weight: bold">Monitoring Status:</label>
+    <input type="text" id="monitoring-status-input" />
+
+    <label for="other-issues-input" style="color: rgb(199,21,133);font-weight: bold">Other Issues:</label>
+    <input type="text" id="other-issues-input" />
+
+    <button onclick="searchLocation()" class="btn">위치 검색</button>
+    <button onclick="searchAuthor()" class="btn">작성자 검색</button>
+    <button onclick="searchProject()" class="btn">프로젝트 검색</button>
+    <button onclick="removeAllPopups()" class="btn">팝업창 닫기</button>
+    <button onclick="removeMarkers()" class="btn">마커 삭제</button>
+    <button onclick="importFromExcel()" class="btn">Import from Excel</button>
+    <button onclick="exportToExcel()" class="btn">Export to Excel</button>
+  </div>
+    <div id="map-container">
+    
+    <div id="mapid"></div>
+    © 2023 Eden AllLiVE HEALTHCARE R&D, Inc. All Rights Reserved.
+  </div>
+  
+  <script>
+    // 맵 생성 및 초기 위치 설정
+    var mymap = L.map('mapid').setView([37.56667, 126.97806], 13);
+
+    // 타일 레이어 추가
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data © <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+    }).addTo(mymap);
+
+    // 검색 함수
+    function searchLocation() {
+      var searchQuery = document.getElementById('site-name-input').value;
+
+      
+
+      // Leaflet의 Nominatim Geocoding 서비스를 사용하여 검색
+      // 결과는 callback 함수로 전달
+      var searchUrl = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(searchQuery) + '&format=json&polygon=1&addressdetails=1';
+      fetch(searchUrl)
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(data) {
+          // 검색 결과가 없을 경우 에러 처리
+          if (data.length == 0) {
+            alert('검색 결과가 없습니다.');
+            return;
+          }
+
+          // 검색된 위치 중 첫 번째 위치를 선택하여 맵에 마커 표시
+          var result = data[0];
+          var lat = result.lat;
+          var lon = result.lon;
+          var name = result.display_name;
+          var marker = L.marker([lat, lon]).addTo(mymap);
+
+          // 마커 클릭 시 팝업 열기
+          var popupContent = '<b>Author Name:</b> ' + document.getElementById('author-name-input').value + '<br>' +
+                             '<b>Project Name:</b> ' + document.getElementById('project-name-input').value + '<br>' +
+                             '<b>Site Name:</b> ' + document.getElementById('site-name-input').value + '<br>' +
+                             '<b>Subject Registration Status:</b> ' + document.getElementById('registration-status-input').value + '<br>' +
+                             '<b>IRB Reporting Matters:</b> ' + document.getElementById('irb-reporting-input').value + '<br>' +
+                             '<b>Monitoring Status:</b> ' + document.getElementById('monitoring-status-input').value + '<br>' +
+                             '<b>Other Issues:</b> ' + document.getElementById('other-issues-input').value;
+
+          // Add the popup to the marker
+          marker.bindPopup(popupContent, { autoClose: false }).openPopup();
+
+           // Clear input fields after searching
+            clearInputFields();
+           
+            // Function to clear input fields
+        function clearInputFields() {
+            document.getElementById('author-name-input').value = '';
+            document.getElementById('project-name-input').value = '';
+            document.getElementById('site-name-input').value = '';
+            document.getElementById('registration-status-input').value = '';
+            document.getElementById('irb-reporting-input').value = '';
+            document.getElementById('monitoring-status-input').value = '';
+            document.getElementById('other-issues-input').value = '';
+            }
+
+          // 검색된 위치로 맵 이동
+          mymap.panTo([lat, lon]);
+
+          // 더블 클릭 시 마커 삭제
+          marker.on('dblclick', function(e) {
+            mymap.removeLayer(marker);
+          });
+
+        })
+        .catch(function(error) {
+          console.log(error);
+        });
+    }
+    // 모든 팝업창을 닫는 함수
+    function removeAllPopups() {
+    mymap.eachLayer(function(layer) {
+        if (layer instanceof L.Marker) {
+        layer.closePopup();
+        }
+    });
+    }
+    //  // 작성자 이름으로 마커 검색 함수
+    //  function searchAuthor() {
+    //   var authorName = prompt('검색할 작성자 이름을 입력하세요:');
+
+    //   if (authorName) {
+    //     // 맵에서 마커를 검색하고 팝업 열기
+    //     mymap.eachLayer(function(layer) {
+    //       if (layer instanceof L.Marker) {
+    //         var popup = layer.getPopup();
+    //         if (popup.getContent().indexOf(authorName) != -1) {
+    //           layer.openPopup();
+    //         }
+    //       }
+    //     });
+    //   }
+    // }
+
+    // // Project Name으로 찾기
+    // function searchProject() {
+    //   var projectName = prompt('검색할 프로젝트 이름을 입력하세요:');
+
+    //   if (projectName) {
+    //     mymap.eachLayer(function(layer) {
+    //       if (layer instanceof L.Marker) {
+    //         var popup = layer.getPopup();
+    //         if (popup.getContent().indexOf(projectName) != -1) {
+    //           layer.openPopup();
+    //         }
+    //       }
+    //     });
+    //   }
+    // }
+    
+     // 작성자 이름으로 마커 검색 함수
+     function searchAuthor() {
+      var authorName = prompt("검색할 작성자 이름을 입력하세요:");
+
+      var found = false;
+      // 맵에서 마커를 검색하고 팝업 열기
+      mymap.eachLayer(function(layer) {
+        if (layer instanceof L.Marker) {
+          var popup = layer.getPopup();
+          if (popup.getContent().indexOf(authorName) != -1) {
+            layer.openPopup();
+            found = true;
+          }
+        }
+      });
+
+      if (!found) {
+        alert("일치하는 작성자가 없습니다! 다시 확인 바랍니다.");
+      }
+    }
+
+    // Project Name으로 찾기
+    function searchProject() {
+      var projectName = prompt("검색할 프로젝트 이름을 입력하세요:");
+
+      var found = false;
+      mymap.eachLayer(function(layer) {
+        if (layer instanceof L.Marker) {
+          var popup = layer.getPopup();
+          if (popup.getContent().indexOf(projectName) != -1) {
+            layer.openPopup();
+            found = true;
+          }
+        }
+      });
+
+      if (!found) {
+        alert("일치하는 프로젝트가 없습니다! 다시 확인 바랍니다.");
+      }
+    }
+
+    // 마커를 모두 지우는 함수
+    function removeMarkers() {
+    mymap.eachLayer(function(layer) {
+        if (layer instanceof L.Marker) {
+        mymap.removeLayer(layer);
+        }
+    });
+    }
+
+    // Import data from Excel and fill the input fields
+    async function importFromExcel() {
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.xls,.xlsx';
+
+  fileInput.onchange = async (event) => {
+    const file = event.target.files[0];
+    const fileReader = new FileReader();
+
+    fileReader.onload = async (event) => {
+      const data = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      const firstWorksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(firstWorksheet, { header: 1 });
+
+      for (let i = 1; i < rows.length; i++) {
+        const rowData = rows[i];
+        if (rowData.length < 7) continue;
+
+        const authorName = rowData[0];
+        const projectName = rowData[1];
+        const siteName = rowData[2];
+        const subjectRegStatus = rowData[3];
+        const irbReporting = rowData[4];
+        const monitoringStatus = rowData[5];
+        const otherIssues = rowData[6];
+
+        const searchUrl = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(siteName) + '&format=json&polygon=1&addressdetails=1';
+        const response = await fetch(searchUrl);
+        const data = await response.json();
+
+        if (data.length == 0) {
+          alert('No search result found for site: ' + siteName);
+          continue;
+        }
+
+        const result = data[0];
+        const lat = result.lat;
+        const lon = result.lon;
+
+        const marker = L.marker([lat, lon]).addTo(mymap);
+
+        const popupContent = `<b>Author Name:</b> ${authorName}<br>
+                              <b>Project Name:</b> ${projectName}<br>
+                              <b>Site Name:</b> ${siteName}<br>
+                              <b>Subject Registration Status:</b> ${subjectRegStatus}<br>
+                              <b>IRB Reporting Matters:</b> ${irbReporting}<br>
+                              <b>Monitoring Status:</b> ${monitoringStatus}<br>
+                              <b>Other Issues:</b> ${otherIssues}`;
+
+        marker.bindPopup(popupContent, { autoClose: false }).openPopup();
+
+        marker.on('dblclick', function (e) {
+          mymap.removeLayer(marker);
+        });
+
+        mymap.panTo([lat, lon]);
+      }
+    };
+
+    fileReader.readAsArrayBuffer(file);
+  };
+
+  fileInput.click();
+}
+
+    function exportToExcel() {
+        var ws_data = [
+            ['Author Name', 'Project Name', 'Site Name', 'Subject Registration Status', 'IRB Reporting Matters', 'Monitoring Status', 'Other Issues']
+        ];
+
+        mymap.eachLayer(function(layer) {
+            if (layer instanceof L.Marker) {
+            var popup = layer.getPopup();
+            var content = popup.getContent();
+            var contentArray = content.match(/<b>[^<]*<\/b>\s+([^<]*)/g).map(function(line) {
+                return line.replace(/<\/?b>/g, '').split(': ')[1].trim();
+            });
+
+            ws_data.push(contentArray);
+            }
+        });
+
+        var wb = XLSX.utils.book_new();
+        var ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, 'Report');
+        XLSX.writeFile(wb, 'WeeklyReport.xlsx');
+    }
+  </script>
+</body>
+</html>
